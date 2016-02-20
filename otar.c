@@ -23,6 +23,12 @@ struct t_program_opts
     int debugLevel;
     bool showHelp;
     bool showVersion;
+    bool addFiles;
+    bool showContentsLong;
+    bool showContentsShort;
+    bool extractFiles;
+    bool deleteFiles;
+    bool deleteFiles;
 };
 
 void Construct_t_program_opts(struct t_program_opts *newStruct);
@@ -31,6 +37,12 @@ void Construct_t_program_opts(struct t_program_opts *newStruct)
     newStruct->debugLevel = 0;
     newStruct->showHelp = false;
     newStruct->showVersion = false;
+    newStruct->addFiles = false;
+    newStruct->showContentsLong = false;
+    newStruct->showContentsShort = false;
+    newStruct->extractFiles = false;
+    newStruct->deleteFiles = false; 
+    newStruct->deleteFiles = false; 
 }
 
 void parseopt(int argc, char ** argv, struct t_program_opts *options);
@@ -53,23 +65,23 @@ void parseopt(int argc, char ** argv, struct t_program_opts *options)
         }
         else if ('a' == arg)
         {
-            
+            options->addFiles = true;
         }
         else if ('t' == arg)
         {
-            
+            options->showContentsShort = true;
         }
         else if ('T' == arg)
         {
-            
+            options->showContentsLong = true;
         }
         else if ('e' == arg)
         {
-            
+            options->extractFiles = true;
         }
         else if ('d' == arg)
         {
-            
+           options->deleteFiles = true; 
         }
     }
 }
