@@ -47,7 +47,7 @@ void parseopt(int argc, char ** argv, struct t_program_opts *options)
         }
         else if ('V' == arg)
         {
-            
+            options->showVersion = true;
         }
         else if ('a' == arg)
         {
@@ -84,6 +84,10 @@ int main(int argc, char ** argv)
     if (options.showHelp)
     {
         DebugOutput(2, "Show help text option selected.\n");
+    }
+    if (options.showVersion)
+    {
+        printf("Git commit version: %s\n", GIT_VERSION);
     }
     return 0;
 }
