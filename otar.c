@@ -5,12 +5,6 @@
 
 static int g_debugLevel = 0;
 
-struct t_program_opts
-{
-    int debugLevel;
-    bool showHelp;
-};
-
 void DebugOutput(int level, const char * message, ...);
 void DebugOutput(int level, const char * message, ...)
 {
@@ -24,11 +18,19 @@ void DebugOutput(int level, const char * message, ...)
     va_end(args);
 }
 
+struct t_program_opts
+{
+    int debugLevel;
+    bool showHelp;
+    bool showVersion;
+};
+
 void Construct_t_program_opts(struct t_program_opts *newStruct);
 void Construct_t_program_opts(struct t_program_opts *newStruct)
 {
     newStruct->debugLevel = 0;
     newStruct->showHelp = false;
+    newStruct->showVersion = false;
 }
 
 void parseopt(int argc, char ** argv, struct t_program_opts *options);
