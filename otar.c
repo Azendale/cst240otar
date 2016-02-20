@@ -28,7 +28,6 @@ struct t_program_opts
     bool showContentsShort;
     bool extractFiles;
     bool deleteFiles;
-    bool deleteFiles;
 };
 
 void Construct_t_program_opts(struct t_program_opts *newStruct);
@@ -41,7 +40,6 @@ void Construct_t_program_opts(struct t_program_opts *newStruct)
     newStruct->showContentsLong = false;
     newStruct->showContentsShort = false;
     newStruct->extractFiles = false;
-    newStruct->deleteFiles = false; 
     newStruct->deleteFiles = false; 
 }
 
