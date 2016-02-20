@@ -89,7 +89,7 @@ int main(int argc, char ** argv)
     }
     if (options.showVersion)
     {
-        printf("Git commit version: %s\n", GIT_VERSION);
+        printf("Version: %s\n", GIT_VERSION);
     }
     return 0;
 }
