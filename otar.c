@@ -3,6 +3,12 @@
 #include <stdbool.h>
 #include <stdarg.h>
 #include <stdlib.h>
+#include <sys/types.h>
+#include <unistd.h>
+#include <string.h>
+#include <sys/param.h>
+
+#include "otar.h"
 
 #define MEM_ALLOC_ERROR 127
 #define FILE_READ_ERROR 126
@@ -182,36 +188,39 @@ void parseopt(int argc, char ** argv, struct t_program_opts *options)
 struct t_bytes_buffer
 {
     int size;
-    char * bytes;
+    // Void so that you get a warning if you do pointer math on it directly
+    // without a cast to say you know about the risks
+    void * bytes;
 };
 
-void Construct_t_bytes_buffer(t_bytes_buffer * newStruct);
-void Destruct_t_bytes_buffer(t_bytes_buffer * oldStruct);
-void Deallocate_t_bytes_buffer(t_bytes_buffer * container);
-void Allocate_t_bytes_buffer(t_bytes_buffer * container, int bytes);
-void ReadInBytesTo_t_bytes_buffer(t_bytes_buffer * container, int fdin, int bytes);
+void Construct_t_bytes_buffer(struct t_bytes_buffer * newStruct);
+void Destruct_t_bytes_buffer(struct t_bytes_buffer * oldStruct);
+void Deallocate_t_bytes_buffer(struct t_bytes_buffer * container);
+void Allocate_t_bytes_buffer(struct t_bytes_buffer * container, int bytes);
+void ReadInBytesTo_t_bytes_buffer(struct t_bytes_buffer * container, int fdin, int bytes);
+bool CompareBuffer_t_bytes_buffer(struct t_bytes_buffer * container, void * otherBuffer, int otherBufferBytes);
 
 
-void Construct_t_bytes_buffer(t_bytes_buffer * newStruct)
+void Construct_t_bytes_buffer(struct t_bytes_buffer * newStruct)
 {
     newStruct->bytes = NULL;
     newStruct->size = 0;
 }
 
-void Destruct_t_bytes_buffer(t_bytes_buffer * oldStruct)
+void Destruct_t_bytes_buffer(struct t_bytes_buffer * oldStruct)
 {
     Deallocate_t_bytes_buffer(oldStruct);
 }
 
 
-void Allocate_t_bytes_buffer(t_bytes_buffer * container, int bytes);
+void Allocate_t_bytes_buffer(struct t_bytes_buffer * container, int bytes)
 {
-   if (0 != container->size) || (NULL != (container->bytes))
+   if ((0 != container->size) || (NULL != (container->bytes)))
    {
        Deallocate_t_bytes_buffer(container);
    }
    
-   container->bytes = (char *)(malloc(bytes));
+   container->bytes = malloc(bytes);
    if (NULL != (container->bytes))
    {
        container->size = bytes;
@@ -223,14 +232,14 @@ void Allocate_t_bytes_buffer(t_bytes_buffer * container, int bytes);
    }
 }
 
-void Deallocate_t_bytes_buffer(t_bytes_buffer * container)
+void Deallocate_t_bytes_buffer(struct t_bytes_buffer * container)
 {
     container->size = 0;
     free((container->bytes));
     container->bytes = NULL;
 }
 
-void ReadInBytesTo_t_bytes_buffer(t_bytes_buffer * container, int fdin, int bytes)
+void ReadInBytesTo_t_bytes_buffer(struct t_bytes_buffer * container, int fdin, int bytes)
 {
     ssize_t readCount;
     readCount = 0;
@@ -263,9 +272,22 @@ void ReadInBytesTo_t_bytes_buffer(t_bytes_buffer * container, int fdin, int byte
     }
 }
 
+bool CompareBuffer_t_bytes_buffer(struct t_bytes_buffer * container, void * otherBuffer, int otherBufferBytes)
+{
+    if (otherBufferBytes > container->size)
+    {
+        return false;
+    }
+    else
+    {
+        return (0 == memcmp(container->bytes, otherBuffer, \
+        MIN(otherBufferBytes, container->size)));
+    }
+}
 
-bool ValidateOtarFile(int fdin, bool thorough=false);
-bool ValidateOtarFile(int fdin, bool thorough=false)
+
+bool ValidateOtarFile(int fdin, bool thorough);
+bool ValidateOtarFile(int fdin, bool thorough)
 {
     struct t_bytes_buffer buffer;
     Construct_t_bytes_buffer(&buffer);
@@ -273,8 +295,17 @@ bool ValidateOtarFile(int fdin, bool thorough=false)
     // Start at the start of the file
     lseek(fdin, 0, SEEK_SET);
     
-    // Look for the header
+    // Look for the otar file type signature
     ReadInBytesTo_t_bytes_buffer(&buffer, fdin, sizeof(char)*OTAR_ID_LEN);
+    
+    if (!CompareBuffer_t_bytes_buffer(&buffer, OTAR_ID, sizeof(char)*OTAR_ID_LEN))
+    {
+        DebugOutput(5, "Did not find otar signature at beggining of file during validation.\n");
+        return false;
+    }
+    
+    // If you got this far, you have passed all the checks so far
+    return true;
 }
 
 
