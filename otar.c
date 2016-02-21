@@ -4,6 +4,9 @@
 #include <stdarg.h>
 #include <stdlib.h>
 
+#define MEM_ALLOC_ERROR 127
+#define FILE_READ_ERROR 126
+
 static int g_debugLevel = 0;
 
 void DebugOutput(int level, const char * message, ...);
@@ -170,6 +173,108 @@ void parseopt(int argc, char ** argv, struct t_program_opts *options)
         printf ("%s \n", argv[optind]);
         AddFile_t_program_opts(options, argv[optind]);
     }
+}
+
+// I know a bytes buffer framework may seem like a bit much, but I think that
+// by spending some time up front to write function that I always use instead
+// if direct buffer manipulation, I can be fairly sure that I won't have 
+// buffer overflows happen
+struct t_bytes_buffer
+{
+    int size;
+    char * bytes;
+};
+
+void Construct_t_bytes_buffer(t_bytes_buffer * newStruct);
+void Destruct_t_bytes_buffer(t_bytes_buffer * oldStruct);
+void Deallocate_t_bytes_buffer(t_bytes_buffer * container);
+void Allocate_t_bytes_buffer(t_bytes_buffer * container, int bytes);
+void ReadInBytesTo_t_bytes_buffer(t_bytes_buffer * container, int fdin, int bytes);
+
+
+void Construct_t_bytes_buffer(t_bytes_buffer * newStruct)
+{
+    newStruct->bytes = NULL;
+    newStruct->size = 0;
+}
+
+void Destruct_t_bytes_buffer(t_bytes_buffer * oldStruct)
+{
+    Deallocate_t_bytes_buffer(oldStruct);
+}
+
+
+void Allocate_t_bytes_buffer(t_bytes_buffer * container, int bytes);
+{
+   if (0 != container->size) || (NULL != (container->bytes))
+   {
+       Deallocate_t_bytes_buffer(container);
+   }
+   
+   container->bytes = (char *)(malloc(bytes));
+   if (NULL != (container->bytes))
+   {
+       container->size = bytes;
+   }
+   else
+   {
+       DebugOutput(4, "t_bytes_buffer Allocate could not allocate enough memory.\n");
+       exit(MEM_ALLOC_ERROR);
+   }
+}
+
+void Deallocate_t_bytes_buffer(t_bytes_buffer * container)
+{
+    container->size = 0;
+    free((container->bytes));
+    container->bytes = NULL;
+}
+
+void ReadInBytesTo_t_bytes_buffer(t_bytes_buffer * container, int fdin, int bytes)
+{
+    ssize_t readCount;
+    readCount = 0;
+    if (container->size != bytes)
+    {
+        if (container->size < bytes)
+        {
+            DebugOutput(3, "Enlarging bytes buffer on file read to avoid buffer overflow.\n");
+        }
+        else // We've ruled out equal, we are reading less than the buffer size
+        {
+            DebugOutput(3, "Shrinking bytes buffer on file read to avoid possible garbage at end of buffer.\n");
+        }
+        // Alloc atomatically cleans up buffer before setting new size
+        Allocate_t_bytes_buffer(container, bytes);
+    }
+    
+    readCount = read(fdin, container->bytes, bytes);
+    if (bytes != readCount)
+    {
+        if (-1 == readCount)
+        {
+            DebugOutput(2, "Failed to read anything from file into t_bytes_buffer.\n");
+        }
+        else
+        {
+            DebugOutput(2, "Read %d bytes from file into t_bytes_buffer instead of %d bytes requested.\n", readCount, bytes);
+        }
+        exit(FILE_READ_ERROR);
+    }
+}
+
+
+bool ValidateOtarFile(int fdin, bool thorough=false);
+bool ValidateOtarFile(int fdin, bool thorough=false)
+{
+    struct t_bytes_buffer buffer;
+    Construct_t_bytes_buffer(&buffer);
+    
+    // Start at the start of the file
+    lseek(fdin, 0, SEEK_SET);
+    
+    // Look for the header
+    ReadInBytesTo_t_bytes_buffer(&buffer, fdin, sizeof(char)*OTAR_ID_LEN);
 }
 
 
