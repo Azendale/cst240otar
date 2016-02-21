@@ -1,7 +1,8 @@
 #include <stdio.h>
-#include <unistd.h>
+#include <getopt.h>
 #include <stdbool.h>
 #include <stdarg.h>
+#include <stdlib.h>
 
 static int g_debugLevel = 0;
 
@@ -19,9 +20,9 @@ void DebugOutput(int level, const char * message, ...)
 
 struct t_string_list
 {
-    char ** list;
+    const char ** list;
     int size;
-}
+};
 
 void Construct_t_string_list(struct t_string_list * newStruct);
 void Construct_t_string_list(struct t_string_list * newStruct)
@@ -42,10 +43,9 @@ void Destruct_t_string_list(struct t_string_list * oldStruct)
 void FreeStrings_t_string_list(struct t_string_list * oldStruct);
 void FreeStrings_t_string_list(struct t_string_list * oldStruct)
 {
-    char * currentString = NULL;
     for (int index = 0; index < oldStruct->size; ++index)
     {
-        free((oldStruct->list)[index]);
+        free((void *)((oldStruct->list)[index]));
         (oldStruct->list)[index] = NULL;
     }
 }
@@ -53,12 +53,13 @@ void FreeStrings_t_string_list(struct t_string_list * oldStruct)
 void AddString_t_string_list(struct t_string_list * container, const char * string);
 void AddString_t_string_list(struct t_string_list * container, const char * string)
 {
+    size_t newSizeBytes;
     ++(container->size);
-    size_t newSizeBytes = sizeof(char *)*(container->size)
-    (container->list) = realloc(container->list, newSizeBytes);
+    newSizeBytes = sizeof(char *)*(container->size);
+    container->list = realloc(container->list, newSizeBytes);
     if (NULL != (container->list))
     {
-        (container->list)[(container->size)-1] = string;
+        container->list[container->size-1] = string;
     }
     else
     {
@@ -76,7 +77,7 @@ int GetStringCount_t_string_list(struct t_string_list * container)
 const char * GetStringByIndex_t_string_list(struct t_string_list * container, int index);
 const char * GetStringByIndex_t_string_list(struct t_string_list * container, int index)
 {
-    return (container->list)[index];
+    return container->list[index];
 }
 
 struct t_program_opts
@@ -106,22 +107,22 @@ void Construct_t_program_opts(struct t_program_opts *newStruct)
     Construct_t_string_list(&(newStruct->files));
 }
 
-void AddFile_t_program_opts(struct t_program_opts options, const char * string);
-void AddFile_t_program_opts(struct t_program_opts options, const char * string)
+void AddFile_t_program_opts(struct t_program_opts * options, const char * string);
+void AddFile_t_program_opts(struct t_program_opts * options, const char * string)
 {
-    AddString_t_string_list(&(newStruct->files), string);
+    AddString_t_string_list(&(options->files), string);
 }
 
 int GetFileCount_t_program_opts(struct t_program_opts options);
 int GetFileCount_t_program_opts(struct t_program_opts options)
 {
-    return GetStringCount_t_string_list(&(options->files));
+    return GetStringCount_t_string_list(&(options.files));
 }
 
 const char * GetFileNameByIndex_t_program_opts(struct t_program_opts options, int index);
 const char * GetFileNameByIndex_t_program_opts(struct t_program_opts options, int index)
 {
-    return GetStringByIndex_t_string_list(&(options->files), index);
+    return GetStringByIndex_t_string_list(&(options.files), index);
 }
 
 void parseopt(int argc, char ** argv, struct t_program_opts *options);
