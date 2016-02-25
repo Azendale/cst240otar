@@ -403,55 +403,6 @@ bool readOtarMainHeader(int fdin)
     Destruct_t_bytes_buffer(&buffer);
 }
 
-
-/*bool ValidateHeaderOtarFile(int fdin, bool thorough);
-bool ValidateHeaderOtarFile(int fdin, bool thorough)
-{
-    t_bytes_buffer buffer;
-    otar_hdr_t header;
-    ssize_t readBytes;
-    bool readSuccess;
-    
-    Construct_t_bytes_buffer(&buffer);
-    readSuccess = false;
-    
-    // Start at the start of the file
-    lseek(fdin, 0, SEEK_SET);
-    
-    // Look for the otar file type signature
-    ReadInBytesTo_t_bytes_buffer(&buffer, fdin, sizeof(char)*OTAR_ID_LEN);
-    
-    if (!CompareBuffer_t_bytes_buffer(&buffer, OTAR_ID, sizeof(char)*OTAR_ID_LEN))
-    {
-        DebugOutput(5, "Did not find otar signature at beginning of file during validation.\n");
-        return false;
-    }
-    else
-    {
-        DebugOutput(5, "Found otar signature at beginning of file.\n");
-    }
-    
-    readBytes = read(fdin, &header, sizeof(otar_hdr_t));
-    while ((readBytes = read(fdin, destination, sizeof(otar_hdr_t))) > 0) 
-    {
-        if (sizeof(otar_hdr_t) != readBytes)
-        {
-            DebugOutput(5, "Found junk at end of file.\n");
-            return false;
-        }
-        
-        if (memcmp(header.otar_hdr_end, OTAR_HDR_END, OTAR_HDR_END_LEN) != 0)
-        {
-            DebugOutput(5, "Found invalid end to otar header.\n");
-        }
-        
-
-    }
-    
-    // If you got this far, you have passed all the checks so far
-    return true;
-}*/
-
 void ShowHelp(void)
 {
     printf("Help text"); // TODO: write manual
