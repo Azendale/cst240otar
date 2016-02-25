@@ -801,6 +801,96 @@ void RemoveFile(int fd, t_program_opts * options)
     Destruct_t_bytes_buffer(&fileBuffer);
 }
 
+void ExtractFile(int fd, t_program_opts * options);
+void ExtractFile(int fd, t_program_opts * options)
+{
+    otar_hdr_t header;
+    bool extractAll;
+    int memberFileFd;
+    int writeSize;
+    t_bytes_buffer fileBody;
+    // For sending to modify/access time setting call
+    struct utimebuf memberFileTimes;
+    
+    memberFileFd = -1;
+    writeSize = -1;
+    extractAll = GetFileCount_t_program_opts(options);
+    Construct_t_bytes_buffer(&fileBody);
+    
+    // Loop through file just like list, but when the file is in the list, read the body into a buffer, and then write it out, setting permissions and mtimes/atimes, gid, uid, etc
+    while (sizeof(otar_hdr_t) == read(fd, header, sizeof(otar_hdr_t)))
+    {
+        header2 = Copy_otar_hdr_t_To_t_int_otar_header(header);
+        if (extractAll || fnameInOptionsFileList(options, header2->fname))
+        {
+            // Need to extract this file, but only if it doesn't already exist or we have permission to overwrite
+            DebugOutput(2, "Attempting to open %s as a new file.\n", header2->fname);
+            memberFileFd = open(header2->fname, O_CREAT | O_EXCL | O_WRONLY, header2->mode);
+            if (memberFileFd < 0)
+            {
+                DebugOutput(2, "Unsuccessful in opening %s as a new file.\n", header2->fname);
+                if (EEXIST == errno && options->overwriteFiles)
+                {
+                    DebugOutput(2, "Overwriting existing file %s on extract because -o flag was set.\n", header2->fname);
+                    // File already exists, but we should just overwrite it
+                    memberFileFd = open(header2->fname, O_WRONLY | O_TRUNC);
+                    if (memberFileFd < 0)
+                    {
+                        DebugOutput(0, "Failed to open %s to write extracted file.\n", header2->fname);
+                        exit(OTAR_FILE_AR_FILE_WRITE_FAIL);
+                    }
+                }
+            }
+            else
+            {
+                // Created a new file 
+                DebugOutput(2, "Successfully opened %s as a new file.\n", header2->fname);
+            }
+            
+            Allocate_t_bytes_buffer(&fileBody, header2->size);
+            if ( header2->size != ReadInBytesTo_t_bytes_buffer(&fileBody, fd, header2->size))
+            {
+                DebugOutput(0, "Couldn't read file body for %s from archive.\n", header2->fname);
+                exit(OTAR_FILE_MEM_FILE_READ_FAIL);
+            }
+            
+            if ( header2->size != (writeSize = write(memberFileFd, fileBody.bytes, filebody.size)) ) 
+            {
+                DebugOutput(0, "Failed to extract %s: %d bytes written instead of %d bytes.\n", header2->fname, writeSize, header2->size);
+            }
+            else
+            {
+                DebugOutput(3, "Wrote %d bytes to %s.\n", writeSize, header2->fname);
+            }
+            
+            // Set atime and mtime
+            memberFileTimes.actime = header2->adate;
+            memberFileTimes.modtime = header2->mdate;
+            futimes(memberFd, memberFileTimes);
+            
+            // Set owner and group
+            fchown(memberFileFd, header2->uid, header2->gid);
+            
+            // Set permissions mode
+            fchmod(memberFileFd, header2->mode);
+            
+            close(memberFileFd);
+            
+            Deallocate_t_bytes_buffer(&fileBody);
+        }
+        else
+        {
+            // Not interested in this file, skip it's body
+            lseek(fd, header2->size, SEEK_CUR);
+        }
+        free(header2);
+        header2 = NULL;
+    }
+    
+    Destruct_t_bytes_buffer(&fileBody);
+}
+
+
 int main(int argc, char ** argv)
 {
     t_program_opts options;
