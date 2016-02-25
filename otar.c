@@ -27,21 +27,21 @@ void DebugOutput(int level, const char * message, ...)
     va_end(args);
 }
 
-struct t_string_list
+typedef struct s_string_list
 {
     const char ** list;
     int size;
-};
+} t_string_list;
 
-void Construct_t_string_list(struct t_string_list * newStruct);
-void Construct_t_string_list(struct t_string_list * newStruct)
+void Construct_t_string_list(t_string_list * newStruct);
+void Construct_t_string_list(t_string_list * newStruct)
 {
    newStruct->size = 0; 
    newStruct->list = NULL; 
 }
 
-void Destruct_t_string_list(struct t_string_list * oldStruct);
-void Destruct_t_string_list(struct t_string_list * oldStruct)
+void Destruct_t_string_list(t_string_list * oldStruct);
+void Destruct_t_string_list(t_string_list * oldStruct)
 {
     // Up to user of struct to clean up strings they have put in, unless
     // they specifically asked for it with FreeStrings_t_string_list
@@ -49,8 +49,8 @@ void Destruct_t_string_list(struct t_string_list * oldStruct)
     oldStruct->list = NULL;
 }
 
-void FreeStrings_t_string_list(struct t_string_list * oldStruct);
-void FreeStrings_t_string_list(struct t_string_list * oldStruct)
+void FreeStrings_t_string_list(t_string_list * oldStruct);
+void FreeStrings_t_string_list(t_string_list * oldStruct)
 {
     for (int index = 0; index < oldStruct->size; ++index)
     {
@@ -59,8 +59,8 @@ void FreeStrings_t_string_list(struct t_string_list * oldStruct)
     }
 }
 
-void AddString_t_string_list(struct t_string_list * container, const char * string);
-void AddString_t_string_list(struct t_string_list * container, const char * string)
+void AddString_t_string_list(t_string_list * container, const char * string);
+void AddString_t_string_list(t_string_list * container, const char * string)
 {
     size_t newSizeBytes;
     ++(container->size);
@@ -77,19 +77,19 @@ void AddString_t_string_list(struct t_string_list * container, const char * stri
     }
 }
 
-int GetStringCount_t_string_list(struct t_string_list * container);
-int GetStringCount_t_string_list(struct t_string_list * container)
+int GetStringCount_t_string_list(t_string_list * container);
+int GetStringCount_t_string_list(t_string_list * container)
 {
     return container->size;
 }
 
-const char * GetStringByIndex_t_string_list(struct t_string_list * container, int index);
-const char * GetStringByIndex_t_string_list(struct t_string_list * container, int index)
+const char * GetStringByIndex_t_string_list(t_string_list * container, int index);
+const char * GetStringByIndex_t_string_list(t_string_list * container, int index)
 {
     return container->list[index];
 }
 
-struct t_program_opts
+typedef struct s_program_opts
 {
     int debugLevel;
     bool showHelp;
@@ -99,11 +99,13 @@ struct t_program_opts
     bool showContentsShort;
     bool extractFiles;
     bool deleteFiles;
-    struct t_string_list files;
-};
+    char * archiveFile;
+    int archiveFileLen;
+    t_string_list files;
+} t_program_opts;
 
-void Construct_t_program_opts(struct t_program_opts *newStruct);
-void Construct_t_program_opts(struct t_program_opts *newStruct)
+void Construct_t_program_opts(t_program_opts *newStruct);
+void Construct_t_program_opts(t_program_opts *newStruct)
 {
     newStruct->debugLevel = 0;
     newStruct->showHelp = false;
@@ -112,30 +114,42 @@ void Construct_t_program_opts(struct t_program_opts *newStruct)
     newStruct->showContentsLong = false;
     newStruct->showContentsShort = false;
     newStruct->extractFiles = false;
-    newStruct->deleteFiles = false; 
+    newStruct->deleteFiles = false;
+    newStruct->archiveFileLen = 0;
+    newStruct->archiveFile = NULL;
     Construct_t_string_list(&(newStruct->files));
 }
 
-void AddFile_t_program_opts(struct t_program_opts * options, const char * string);
-void AddFile_t_program_opts(struct t_program_opts * options, const char * string)
+void Cleanup_t_program_opts(t_program_opts * oldStruct);
+void Cleanup_t_program_opts(t_program_opts * oldStruct)
+{
+    oldStruct->archiveFileLen = 0;
+    free(oldStruct->archiveFile);
+    oldStruct->archiveFile = NULL;
+    // Does not free up strings pointed to, but in this case, those are in argv and should not be freed
+    Destruct_t_string_list(&(oldStruct->files));
+}
+
+void AddFile_t_program_opts(t_program_opts * options, const char * string);
+void AddFile_t_program_opts(t_program_opts * options, const char * string)
 {
     AddString_t_string_list(&(options->files), string);
 }
 
-int GetFileCount_t_program_opts(struct t_program_opts options);
-int GetFileCount_t_program_opts(struct t_program_opts options)
+int GetFileCount_t_program_opts(t_program_opts options);
+int GetFileCount_t_program_opts(t_program_opts options)
 {
     return GetStringCount_t_string_list(&(options.files));
 }
 
-const char * GetFileNameByIndex_t_program_opts(struct t_program_opts options, int index);
-const char * GetFileNameByIndex_t_program_opts(struct t_program_opts options, int index)
+const char * GetFileNameByIndex_t_program_opts(t_program_opts options, int index);
+const char * GetFileNameByIndex_t_program_opts(t_program_opts options, int index)
 {
     return GetStringByIndex_t_string_list(&(options.files), index);
 }
 
-void parseopt(int argc, char ** argv, struct t_program_opts *options);
-void parseopt(int argc, char ** argv, struct t_program_opts *options)
+void parseopt(int argc, char ** argv, t_program_opts *options);
+void parseopt(int argc, char ** argv, t_program_opts *options)
 {
     int arg;
     while (-1 != (arg = getopt(argc, argv, "vhVatTed")))
@@ -185,35 +199,35 @@ void parseopt(int argc, char ** argv, struct t_program_opts *options)
 // by spending some time up front to write function that I always use instead
 // if direct buffer manipulation, I can be fairly sure that I won't have 
 // buffer overflows happen
-struct t_bytes_buffer
+typedef struct s_bytes_buffer
 {
     int size;
     // Void so that you get a warning if you do pointer math on it directly
     // without a cast to say you know about the risks
     void * bytes;
-};
+} t_bytes_buffer;
 
-void Construct_t_bytes_buffer(struct t_bytes_buffer * newStruct);
-void Destruct_t_bytes_buffer(struct t_bytes_buffer * oldStruct);
-void Deallocate_t_bytes_buffer(struct t_bytes_buffer * container);
-void Allocate_t_bytes_buffer(struct t_bytes_buffer * container, int bytes);
-void ReadInBytesTo_t_bytes_buffer(struct t_bytes_buffer * container, int fdin, int bytes);
-bool CompareBuffer_t_bytes_buffer(struct t_bytes_buffer * container, void * otherBuffer, int otherBufferBytes);
+void Construct_t_bytes_buffer(t_bytes_buffer * newStruct);
+void Destruct_t_bytes_buffer(t_bytes_buffer * oldStruct);
+void Deallocate_t_bytes_buffer(t_bytes_buffer * container);
+void Allocate_t_bytes_buffer(t_bytes_buffer * container, int bytes);
+void ReadInBytesTo_t_bytes_buffer(t_bytes_buffer * container, int fdin, int bytes);
+bool CompareBuffer_t_bytes_buffer(t_bytes_buffer * container, void * otherBuffer, int otherBufferBytes);
 
 
-void Construct_t_bytes_buffer(struct t_bytes_buffer * newStruct)
+void Construct_t_bytes_buffer(t_bytes_buffer * newStruct)
 {
     newStruct->bytes = NULL;
     newStruct->size = 0;
 }
 
-void Destruct_t_bytes_buffer(struct t_bytes_buffer * oldStruct)
+void Destruct_t_bytes_buffer(t_bytes_buffer * oldStruct)
 {
     Deallocate_t_bytes_buffer(oldStruct);
 }
 
 
-void Allocate_t_bytes_buffer(struct t_bytes_buffer * container, int bytes)
+void Allocate_t_bytes_buffer(t_bytes_buffer * container, int bytes)
 {
    if ((0 != container->size) || (NULL != (container->bytes)))
    {
@@ -232,14 +246,14 @@ void Allocate_t_bytes_buffer(struct t_bytes_buffer * container, int bytes)
    }
 }
 
-void Deallocate_t_bytes_buffer(struct t_bytes_buffer * container)
+void Deallocate_t_bytes_buffer(t_bytes_buffer * container)
 {
     container->size = 0;
     free((container->bytes));
     container->bytes = NULL;
 }
 
-void ReadInBytesTo_t_bytes_buffer(struct t_bytes_buffer * container, int fdin, int bytes)
+void ReadInBytesTo_t_bytes_buffer(t_bytes_buffer * container, int fdin, int bytes)
 {
     ssize_t readCount;
     readCount = 0;
@@ -272,7 +286,7 @@ void ReadInBytesTo_t_bytes_buffer(struct t_bytes_buffer * container, int fdin, i
     }
 }
 
-bool CompareBuffer_t_bytes_buffer(struct t_bytes_buffer * container, void * otherBuffer, int otherBufferBytes)
+bool CompareBuffer_t_bytes_buffer(t_bytes_buffer * container, void * otherBuffer, int otherBufferBytes)
 {
     if (otherBufferBytes > container->size)
     {
@@ -285,11 +299,11 @@ bool CompareBuffer_t_bytes_buffer(struct t_bytes_buffer * container, void * othe
     }
 }
 
-
-bool ValidateOtarFile(int fdin, bool thorough);
-bool ValidateOtarFile(int fdin, bool thorough)
+bool readOtarMainHeader(int fdin);
+bool readOtarMainHeader(int fdin)
 {
-    struct t_bytes_buffer buffer;
+    t_bytes_buffer buffer;
+    
     Construct_t_bytes_buffer(&buffer);
     
     // Start at the start of the file
@@ -300,18 +314,75 @@ bool ValidateOtarFile(int fdin, bool thorough)
     
     if (!CompareBuffer_t_bytes_buffer(&buffer, OTAR_ID, sizeof(char)*OTAR_ID_LEN))
     {
-        DebugOutput(5, "Did not find otar signature at beggining of file during validation.\n");
+        DebugOutput(5, "Did not find otar signature at beginning of file during validation.\n");
         return false;
+    }
+    else
+    {
+        DebugOutput(5, "Found otar signature at beginning of file.\n");
+        return true;
+    }
+    Destruct_t_bytes_buffer(&buffer);
+}
+
+otar_hdr_t * ReadOtarFileHeader(int fdin);
+otar_hdr_t * ReadOtarFileHeader(int fdin)
+{
+    return NULL;
+}
+
+/*bool ValidateHeaderOtarFile(int fdin, bool thorough);
+bool ValidateHeaderOtarFile(int fdin, bool thorough)
+{
+    t_bytes_buffer buffer;
+    otar_hdr_t header;
+    ssize_t readBytes;
+    bool readSuccess;
+    
+    Construct_t_bytes_buffer(&buffer);
+    readSuccess = false;
+    
+    // Start at the start of the file
+    lseek(fdin, 0, SEEK_SET);
+    
+    // Look for the otar file type signature
+    ReadInBytesTo_t_bytes_buffer(&buffer, fdin, sizeof(char)*OTAR_ID_LEN);
+    
+    if (!CompareBuffer_t_bytes_buffer(&buffer, OTAR_ID, sizeof(char)*OTAR_ID_LEN))
+    {
+        DebugOutput(5, "Did not find otar signature at beginning of file during validation.\n");
+        return false;
+    }
+    else
+    {
+        DebugOutput(5, "Found otar signature at beginning of file.\n");
+    }
+    
+    readBytes = read(fdin, &header, sizeof(otar_hdr_t));
+    while ((readBytes = read(fdin, destination, sizeof(otar_hdr_t))) > 0) 
+    {
+        if (sizeof(otar_hdr_t) != readBytes)
+        {
+            DebugOutput(5, "Found junk at end of file.\n");
+            return false;
+        }
+        
+        if (memcmp(header.otar_hdr_end, OTAR_HDR_END, OTAR_HDR_END_LEN) != 0)
+        {
+            DebugOutput(5, "Found invalid end to otar header.\n");
+        }
+        
+
     }
     
     // If you got this far, you have passed all the checks so far
     return true;
-}
+}*/
 
 
 int main(int argc, char ** argv)
 {
-    struct t_program_opts options;
+    t_program_opts options;
     Construct_t_program_opts(&options);
     
     parseopt(argc, argv, &options);
@@ -325,5 +396,6 @@ int main(int argc, char ** argv)
     {
         printf("Version: %s\n", GIT_VERSION);
     }
+    Cleanup_t_program_opts(&options);
     return 0;
 }
