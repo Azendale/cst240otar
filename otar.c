@@ -823,6 +823,12 @@ void ExtractFile(int fd, t_program_opts * options)
     extractAll = GetFileCount_t_program_opts(options);
     Construct_t_bytes_buffer(&fileBody);
     header2 = NULL;
+    extractAll = false;
+    
+    if (0 == GetFileCount_t_program_opts(options) )
+    {
+        extractAll = true;
+    }
     
     // Loop through file just like list, but when the file is in the list, read the body into a buffer, and then write it out, setting permissions and mtimes/atimes, gid, uid, etc
     while (sizeof(otar_hdr_t) == read(fd, &header, sizeof(otar_hdr_t)))
