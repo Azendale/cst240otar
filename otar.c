@@ -842,15 +842,23 @@ void ExtractFile(int fd, t_program_opts * options)
             if (memberFileFd < 0)
             {
                 DebugOutput(2, "Unsuccessful in opening %s as a new file.\n", header2->fname);
-                if (EEXIST == errno && options->overwriteFiles)
+                if (EEXIST == errno)
                 {
-                    DebugOutput(2, "Overwriting existing file %s on extract because -o flag was set.\n", header2->fname);
-                    // File already exists, but we should just overwrite it
-                    memberFileFd = open(header2->fname, O_WRONLY | O_TRUNC);
-                    if (memberFileFd < 0)
+                    if (options->overwriteFiles)
                     {
-                        DebugOutput(0, "Failed to open %s to write extracted file.\n", header2->fname);
-                        exit(OTAR_FILE_AR_FILE_WRITE_FAIL);
+                        DebugOutput(2, "Overwriting existing file %s on extract because -o flag was set.\n", header2->fname);
+                        // File already exists, but we should just overwrite it
+                        memberFileFd = open(header2->fname, O_WRONLY | O_TRUNC);
+                        if (memberFileFd < 0)
+                        {
+                            DebugOutput(0, "Failed to open %s to write extracted file.\n", header2->fname);
+                            exit(OTAR_FILE_AR_FILE_WRITE_FAIL);
+                        }
+                    }
+                    else
+                    {
+                        DebugOutput(1, "Not extracting %s because it already exists and you didn't ask to overwrite it with -o.\n", header2->fname);
+                        continue;
                     }
                 }
             }
@@ -975,15 +983,3 @@ int main(int argc, char ** argv)
     Cleanup_t_program_opts(&options);
     return 0;
 }
-
-/*
- int debugLevel;
- bool showHelp;
- bool showVersion;
- bool addFiles;
- bool showContentsLong;
- bool showContentsShort;
- bool extractFiles;
- bool deleteFiles;
- char * archiveFile;
- t_string_list files;*/
