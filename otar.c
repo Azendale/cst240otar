@@ -561,6 +561,22 @@ void CheckHeader(int fd)
     }
 }
 
+void ListOtarShort(int fd, t_program_opts const * options);
+void ListOtarShort(int fd, t_program_opts const * options)
+{
+    otar_hdr_t * header = (otar_hdr_t *)malloc(sizeof(otar_hdr_t));
+    t_int_otar_header * header2 = NULL;
+    printf("Short table of contents for otar archive file: %s", options->archiveFile);
+    while (sizeof(otar_hdr_t) == read(fd, header, sizeof(otar_hdr_t)))
+    {
+        header2 = Copy_otar_hdr_t_To_t_int_otar_header(header);
+        printf("\t%s\n", header2->fname);
+        lseek(fd, header2->size, SEEK_CUR);
+        free(header2);
+    }
+    free(header);
+}
+
 int main(int argc, char ** argv)
 {
     t_program_opts options;
@@ -584,7 +600,6 @@ int main(int argc, char ** argv)
         if (options.archiveFile)
         {
             int fd;
-            otar_hdr_t * header = (otar_hdr_t *)malloc(sizeof(otar_hdr_t));
             // Readonly operations
             if (options.extractFiles || options.showContentsLong || options.showContentsShort)
             {
@@ -594,10 +609,8 @@ int main(int argc, char ** argv)
                 
                 if (options.showContentsShort)
                 {
-                    while (sizeof(otar_hdr_t) == read(fd, header, sizeof(otar_hdr_t)))
-                    {
-
-                    }
+                    ListOtarShort(fd, &options);
+                    close(fd);
                 }
                 if (options.showContentsLong)
                 {
@@ -620,9 +633,6 @@ int main(int argc, char ** argv)
                 CheckOpen(fd);
                 CheckHeader(fd);
             }
-            
-            free(header);
-            header = NULL;
         }
         else
         {
