@@ -941,7 +941,7 @@ int main(int argc, char ** argv)
                 }
                 if (options.extractFiles)
                 {
-                    
+                    ExtractFile(fd, &options);
                     umask(0);
                 }
             }
