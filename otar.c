@@ -541,6 +541,26 @@ otar_hdr_t * Copy_t_int_otar_header_To_otar_hdr_t(t_int_otar_header * in)
     return out;
 }
 
+void CheckOpen(int fd);
+void CheckOpen(int fd)
+{
+    if (-1 == fd)
+    {
+        DebugOutput(1, "Couldn't open the requested file.\n");
+        exit(OTAR_FILE_COULD_NOT_OPEN);
+    }    
+}
+
+void CheckHeader(int fd);
+void CheckHeader(int fd)
+{
+    if (!readOtarMainHeader(fd))
+    {
+        DebugOutput(1, "Not a valid otar file.\n");
+        exit(OTAR_FILE_CORRUPT);
+    }
+}
+
 int main(int argc, char ** argv)
 {
     t_program_opts options;
@@ -559,66 +579,56 @@ int main(int argc, char ** argv)
         printf("Version: %s\n", GIT_VERSION);
     }
     // Things we need a file for
-    if ( (options.extractFiles || options.showContentsLong || options.showContentsShort || options.addFiles || options.deleteFiles) && options.archiveFile)
+    if (options.extractFiles || options.showContentsLong || options.showContentsShort || options.addFiles || options.deleteFiles)
     {
-        int fd;
-        otar_hdr_t * header = (otar_hdr_t *)malloc(sizeof(otar_hdr_t));
-        // Readonly operations
-        if (options.extractFiles || options.showContentsLong || options.showContentsShort)
+        if (options.archiveFile)
         {
-            fd = open(options.archiveFile, O_RDONLY);
-            if (-1 == fd)
+            int fd;
+            otar_hdr_t * header = (otar_hdr_t *)malloc(sizeof(otar_hdr_t));
+            // Readonly operations
+            if (options.extractFiles || options.showContentsLong || options.showContentsShort)
             {
-                exit(OTAR_FILE_COULD_NOT_OPEN);
-            }
-            
-            if (!readOtarMainHeader(fd))
-            {
-                DebugOutput(1, "Not a valid otar file.\n");
-                exit(OTAR_FILE_CORRUPT);
-            }
-            
-            if (options.showContentsShort)
-            {
-                while (sizeof(otar_hdr_t) == read(fd, header, sizeof(otar_hdr_t)))
+                fd = open(options.archiveFile, O_RDONLY);
+                CheckOpen(fd);
+                CheckHeader(fd);
+                
+                if (options.showContentsShort)
                 {
+                    while (sizeof(otar_hdr_t) == read(fd, header, sizeof(otar_hdr_t)))
+                    {
 
+                    }
+                }
+                if (options.showContentsLong)
+                {
+                    
+                }
+                if (options.extractFiles)
+                {
+                    
                 }
             }
-            if (options.showContentsLong)
+            else if (options.addFiles)
             {
+                fd = open(options.archiveFile, O_RDWR | O_CREAT, S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
+                CheckOpen(fd);
                 
             }
-            if (options.extractFiles)
+            else if (options.deleteFiles)
             {
-                
+                fd = open(options.archiveFile, O_RDWR);
+                CheckOpen(fd);
+                CheckHeader(fd);
             }
+            
+            free(header);
+            header = NULL;
         }
-        else if (options.addFiles)
+        else
         {
-            fd = open(options.archiveFile, O_RDWR | O_CREAT, S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
-            if (-1 == fd)
-            {
-                exit(OTAR_FILE_COULD_NOT_OPEN);
-            }
-             
+            fprintf(stderr, "No archive file specified, but you requested an operation that requires one.\n");
+            ShowHelp();
         }
-        else if (options.deleteFiles)
-        {
-           fd = open(options.archiveFile, O_RDWR);
-            if (-1 == fd)
-            {
-                exit(OTAR_FILE_COULD_NOT_OPEN);
-            }
-        }
-        
-        free(header);
-        header = NULL;
-    }
-    else
-    {
-        fprintf(stderr, "No archive file specified, but you requested an operation that requires one.\n");
-        ShowHelp();
     }
     Cleanup_t_program_opts(&options);
     return 0;
