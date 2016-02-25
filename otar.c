@@ -15,6 +15,36 @@
 
 static int g_debugLevel = 0;
 
+// Unsigned, bounded atoi
+// Credit goes to http://stackoverflow.com/a/1086059/962918 for the start of this
+int nuatoi(char * string, int count)
+{
+    int total = 0;
+    int charVal = 0;
+    while(isdigit(string[0]) && count--)
+    {
+        charVal = string[0] - '0';
+        total = total * 10 + charVal;      
+        ++string;
+    }
+    return total;
+}
+
+// Unsigned, bounded atol
+// Credit goes to http://stackoverflow.com/a/1086059/962918 for the start of this
+long nuatoi(char * string, int count)
+{
+    long total = 0;
+    int charVal = 0;
+    while(isdigit(string[0]) && count--)
+    {
+        charVal = string[0] - '0';
+        total = total * 10 + charVal;      
+        ++string;
+    }
+    return total;
+}
+
 void DebugOutput(int level, const char * message, ...);
 void DebugOutput(int level, const char * message, ...)
 {
@@ -100,7 +130,6 @@ typedef struct s_program_opts
     bool extractFiles;
     bool deleteFiles;
     char * archiveFile;
-    int archiveFileLen;
     t_string_list files;
 } t_program_opts;
 
@@ -115,7 +144,7 @@ void Construct_t_program_opts(t_program_opts *newStruct)
     newStruct->showContentsShort = false;
     newStruct->extractFiles = false;
     newStruct->deleteFiles = false;
-    newStruct->archiveFileLen = 0;
+    newStruct->overwriteFiles = false;
     newStruct->archiveFile = NULL;
     Construct_t_string_list(&(newStruct->files));
 }
@@ -123,9 +152,6 @@ void Construct_t_program_opts(t_program_opts *newStruct)
 void Cleanup_t_program_opts(t_program_opts * oldStruct);
 void Cleanup_t_program_opts(t_program_opts * oldStruct)
 {
-    oldStruct->archiveFileLen = 0;
-    free(oldStruct->archiveFile);
-    oldStruct->archiveFile = NULL;
     // Does not free up strings pointed to, but in this case, those are in argv and should not be freed
     Destruct_t_string_list(&(oldStruct->files));
 }
@@ -148,11 +174,16 @@ const char * GetFileNameByIndex_t_program_opts(t_program_opts options, int index
     return GetStringByIndex_t_string_list(&(options.files), index);
 }
 
+void SetArchiveFile(t_program_opts * container, char * filename)
+{
+    container->archiveFile = filename;
+}
+
 void parseopt(int argc, char ** argv, t_program_opts *options);
 void parseopt(int argc, char ** argv, t_program_opts *options)
 {
     int arg;
-    while (-1 != (arg = getopt(argc, argv, "vhVatTed")))
+    while (-1 != (arg = getopt(argc, argv, "vhVatTedo")))
     {
         if ('v' == arg)
         {
@@ -186,12 +217,19 @@ void parseopt(int argc, char ** argv, t_program_opts *options)
         {
            options->deleteFiles = true; 
         }
+        else if ('o' == arg)
+        {
+           options->overwriteFiles = true; 
+        }
     }
-    if (optind < argc) {
-    DebugOutput(2, "non getopt parameters:\n");
-    for (/*optind already set*/; optind < argc; ++optind)
-        printf ("%s \n", argv[optind]);
-        AddFile_t_program_opts(options, argv[optind]);
+    if (optind < argc)
+    {
+        SetArchiveFile(options, argv[optind]);
+        ++optind;
+        for (/*optind already set*/; optind < argc; ++optind)
+        {
+            AddFile_t_program_opts(options, argv[optind]);
+        }
     }
 }
 
@@ -253,7 +291,7 @@ void Deallocate_t_bytes_buffer(t_bytes_buffer * container)
     container->bytes = NULL;
 }
 
-void ReadInBytesTo_t_bytes_buffer(t_bytes_buffer * container, int fdin, int bytes)
+ssize_t ReadInBytesTo_t_bytes_buffer(t_bytes_buffer * container, int fdin, int bytes)
 {
     ssize_t readCount;
     readCount = 0;
@@ -282,8 +320,8 @@ void ReadInBytesTo_t_bytes_buffer(t_bytes_buffer * container, int fdin, int byte
         {
             DebugOutput(2, "Read %d bytes from file into t_bytes_buffer instead of %d bytes requested.\n", readCount, bytes);
         }
-        exit(FILE_READ_ERROR);
     }
+    return ReadCount;
 }
 
 bool CompareBuffer_t_bytes_buffer(t_bytes_buffer * container, void * otherBuffer, int otherBufferBytes)
@@ -325,11 +363,6 @@ bool readOtarMainHeader(int fdin)
     Destruct_t_bytes_buffer(&buffer);
 }
 
-otar_hdr_t * ReadOtarFileHeader(int fdin);
-otar_hdr_t * ReadOtarFileHeader(int fdin)
-{
-    return NULL;
-}
 
 /*bool ValidateHeaderOtarFile(int fdin, bool thorough);
 bool ValidateHeaderOtarFile(int fdin, bool thorough)
@@ -379,6 +412,55 @@ bool ValidateHeaderOtarFile(int fdin, bool thorough)
     return true;
 }*/
 
+void ShowHelp()
+{
+    printf("Help text"); // TODO: write manual
+}
+
+typedef struct s_int_otar_header
+{
+   int size; 
+   int fname_len;
+   char * fname;
+} t_int_otar_header;
+
+void Construct_t_int_otar_header(t_int_otar_header * container);
+void Construct_t_int_otar_header(t_int_otar_header * container)
+{
+    size = 0;
+    // Size, not counting null terminating guard, -1 means no string/don't derefence fname
+    fname_len = -1;
+    fname = NULL;
+}
+
+void Cleanup_t_int_otar_header(t_int_otar_header * container)
+{
+    free(fname);
+    // -1 means no string, not even empty (so a check for -1 is to gaurd against segfaults)
+    fname_len = -1;
+}
+
+t_int_otar_header * Copy_otar_hdr_t_To_t_int_otar_header(otar_hdr_t * in);
+t_int_otar_header * Copy_otar_hdr_t_To_t_int_otar_header(otar_hdr_t * in)
+{
+    t_int_otar_header * out = malloc(sizeof(t_int_otar_header));
+    Construct_t_int_otar_header(out);
+    
+    out->size = nuatoi(header.otar_fname_len, OTAR_FILE_SIZE);
+    out->fname_len = nuatoi(header.otar_fname_len, OTAR_FNAME_LEN_SIZE);
+    out->fname = strndup(header.otar_fname, min(OTAR_MAX_FILE_NAME_LEN, out->fname_len));
+    // Length, as determined by null termination
+    out->fname_len = min(strlen(out->fname), out->fname_len);
+
+    
+    return out;
+}
+
+otar_hdr_t * Copy_t_int_otar_header_To_otar_hdr_t(t_int_otar_header * in);
+otar_hdr_t * Copy_t_int_otar_header_To_otar_hdr_t(t_int_otar_header * in)
+{
+    
+}
 
 int main(int argc, char ** argv)
 {
@@ -391,11 +473,79 @@ int main(int argc, char ** argv)
     if (options.showHelp)
     {
         DebugOutput(2, "Show help text option selected.\n");
+        ShowHelp();
     }
     if (options.showVersion)
     {
         printf("Version: %s\n", GIT_VERSION);
     }
+    if (options.archiveFile)
+    {
+        otar_hdr_t * header = (otar_hdr_t *)malloc(sizeof(otar_hdr_t));
+        
+        if (options.showContentsLong)
+        {
+            if (!readOtarMainHeader(fdin))
+            {
+                DebugOutput(1, "Not a valid otar file.\n");
+                exit(OTAR_FILE_CORRUPT);
+            }
+            while (sizeof(otar_hdr_t) == read(fdin, header, sizeof(otar_hdr_t)))
+            {
+                // Convert size from lengthstring to int
+                int fileSize = nuatoi(header.otar_fname_len, OTAR_FILE_SIZE);
+                
+                // Convert name size from lengthstring to int
+                // Does not count null term
+                int fileNameSize = nuatoi(header.otar_fname_len, OTAR_FNAME_LEN_SIZE);
+                
+                /*int nullTFnameLen = min(OTAR_MAX_FILE_NAME_LEN, fileNameSize)+1;
+                char * nullTFname = (char *)(malloc(nullTFnameLen));
+                nullTFname[nullTFnameLen-1] = 0;*/
+                char * nullTFname = strndup(header.otar_fname, min(OTAR_MAX_FILE_NAME_LEN, fileNameSize));
+                
+                printf("%s\n", nullTFname);
+                free(nullTFname);
+                lseek(header->ator_size)
+            }
+        }
+        else if (options.showContentsShort)
+        {
+            
+        }
+        else if (options.addFiles)
+        {
+            
+        }
+        else if (options.extractFiles)
+        {
+            
+        }
+        else if (options.deleteFiles)
+        {
+            
+        }
+        
+        free(header);
+        header = NULL;
+    }
+    else
+    {
+        fprintf(stderr, "No archive file specified.\n");
+        ShowHelp();
+    }
     Cleanup_t_program_opts(&options);
     return 0;
 }
+
+/*
+ int debugLevel;
+ bool showHelp;
+ bool showVersion;
+ bool addFiles;
+ bool showContentsLong;
+ bool showContentsShort;
+ bool extractFiles;
+ bool deleteFiles;
+ char * archiveFile;
+ t_string_list files;*/
