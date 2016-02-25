@@ -724,7 +724,7 @@ int main(int argc, char ** argv)
                 umask(0);
                 fd = open(options.archiveFile, O_RDWR | O_CREAT, S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
                 CheckOpen(fd);
-                
+                AddFile(fd, &options);
             }
             else if (options.deleteFiles)
             {
