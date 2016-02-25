@@ -544,16 +544,16 @@ otar_hdr_t * Copy_t_int_otar_header_To_otar_hdr_t(t_int_otar_header * in)
     // Set the string without a null getting added
     memcpy(out->otar_fname, in->fname, nameLen);
     
-    CharFieldFromInt("%*ld", in->fname_len, out->otar_fname_len, OTAR_FNAME_LEN_SIZE);
+    CharFieldFromInt("%*-ld", in->fname_len, out->otar_fname_len, OTAR_FNAME_LEN_SIZE);
     
-    CharFieldFromInt("%*ld", in->adate, out->otar_adate, OTAR_DATE_SIZE);
-    CharFieldFromInt("%*ld", in->mdate, out->otar_mdate, OTAR_DATE_SIZE);
+    CharFieldFromInt("%*-ld", in->adate, out->otar_adate, OTAR_DATE_SIZE);
+    CharFieldFromInt("%*-ld", in->mdate, out->otar_mdate, OTAR_DATE_SIZE);
     
-    CharFieldFromInt("%*ld", in->uid, out->otar_uid, OTAR_GUID_SIZE);
-    CharFieldFromInt("%*ld", in->gid, out->otar_gid, OTAR_GUID_SIZE);
+    CharFieldFromInt("%*-ld", in->uid, out->otar_uid, OTAR_GUID_SIZE);
+    CharFieldFromInt("%*-ld", in->gid, out->otar_gid, OTAR_GUID_SIZE);
     
-    CharFieldFromInt("%*o", in->mode, out->otar_mode, OTAR_MODE_SIZE);
-    CharFieldFromInt("%*ld", in->size, out->otar_size, OTAR_FILE_SIZE);
+    CharFieldFromInt("%*-o", in->mode, out->otar_mode, OTAR_MODE_SIZE);
+    CharFieldFromInt("%*-ld", in->size, out->otar_size, OTAR_FILE_SIZE);
     
     strncpy(out->otar_hdr_end, OTAR_HDR_END, OTAR_HDR_END_LEN);
     
