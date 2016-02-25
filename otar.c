@@ -29,6 +29,10 @@ int nuatoi(char * string, int count)
 {
     int total = 0;
     int charVal = 0;
+    while(string[0] && !isdigit(string[0]) && count--)
+    {
+        ++string;
+    }
     while(isdigit(string[0]) && count--)
     {
         charVal = string[0] - '0';
@@ -44,6 +48,10 @@ long nuatol(char * string, int count)
 {
     long total = 0;
     int charVal = 0;
+    while(string[0] && !isdigit(string[0]) && count--)
+    {
+        ++string;
+    }
     while(isdigit(string[0]) && count--)
     {
         charVal = string[0] - '0';
@@ -59,6 +67,10 @@ int nuatoiOctal(char * string, int count)
 {
     int total = 0;
     int charVal = 0;
+    while(string[0] && !isdigit(string[0]) && count--)
+    {
+        ++string;
+    }
     while(isdigit(string[0]) && count--)
     {
         charVal = string[0] - '0';
@@ -185,16 +197,16 @@ void AddFile_t_program_opts(t_program_opts * options, const char * string)
     AddString_t_string_list(&(options->files), string);
 }
 
-int GetFileCount_t_program_opts(t_program_opts options);
-int GetFileCount_t_program_opts(t_program_opts options)
+int GetFileCount_t_program_opts(t_program_opts * options);
+int GetFileCount_t_program_opts(t_program_opts * options)
 {
-    return GetStringCount_t_string_list(&(options.files));
+    return GetStringCount_t_string_list(&(options->files));
 }
 
-const char * GetFileNameByIndex_t_program_opts(t_program_opts options, int index);
-const char * GetFileNameByIndex_t_program_opts(t_program_opts options, int index)
+const char * GetFileNameByIndex_t_program_opts(t_program_opts * options, int index);
+const char * GetFileNameByIndex_t_program_opts(t_program_opts * options, int index)
 {
-    return GetStringByIndex_t_string_list(&(options.files), index);
+    return GetStringByIndex_t_string_list(&(options->files), index);
 }
 
 void SetArchiveFile(t_program_opts * container, char * filename);
@@ -495,7 +507,8 @@ t_int_otar_header * Copy_otar_hdr_t_To_t_int_otar_header(otar_hdr_t * in)
     
     if (0 != memcmp(OTAR_HDR_END, in->otar_hdr_end, OTAR_HDR_END_LEN))
     {
-        DebugOutput(1, "Not a valid otar file.\n");
+        fprintf(stderr, "Corrupt archive.\n");
+        DebugOutput(1, "Not a valid otar file because a member file header has an incorrect signature.\n");
         exit(OTAR_FILE_CORRUPT);
     }
     
@@ -566,7 +579,7 @@ void ListOtarShort(int fd, t_program_opts const * options)
 {
     otar_hdr_t * header = (otar_hdr_t *)malloc(sizeof(otar_hdr_t));
     t_int_otar_header * header2 = NULL;
-    printf("Short table of contents for otar archive file: %s", options->archiveFile);
+    printf("Short table of contents for otar archive file: %s\n", options->archiveFile);
     while (sizeof(otar_hdr_t) == read(fd, header, sizeof(otar_hdr_t)))
     {
         header2 = Copy_otar_hdr_t_To_t_int_otar_header(header);
@@ -575,6 +588,90 @@ void ListOtarShort(int fd, t_program_opts const * options)
         free(header2);
     }
     free(header);
+}
+
+void AddFile(int fd, t_program_opts * options);
+void AddFile(int fd, t_program_opts * options)
+{
+    struct stat otarStats;
+    fstat(fd, &otarStats);
+    
+    if (0 != otarStats.st_size)
+    {
+        if (!readOtarMainHeader(fd))
+        {
+            DebugOutput(1, "Not a valid otar file.\n");
+            exit(OTAR_FILE_CORRUPT);
+        }
+        // Otherwise, there is a main header, and we are past it successfully
+    }
+    else
+    {
+        // File is 0 long, write the main header
+        write(fd, OTAR_ID, OTAR_ID_LEN);
+    }
+    
+    // Go to the end of the file
+    lseek(fd, 0, SEEK_END);
+    // For each file we are supposed to add
+    for (int i = 0; i < GetFileCount_t_program_opts(options); ++i)
+    {
+        struct stat addFileStats;
+        int readSize;
+        int actualRead;
+        t_bytes_buffer fileContents;
+        otar_hdr_t * fileHeader = NULL;
+        const char * fname = NULL;
+        int addFd = -1;
+        Construct_t_bytes_buffer(&fileContents);
+        fname = GetFileNameByIndex_t_program_opts(options, i);
+        addFd = open(fname, O_RDONLY);
+        if (-1 == addFd)
+        {
+            DebugOutput(1, "Couldn't open filename %s to add to archive.\n", fname);
+            exit(OTAR_FILE_MEM_FILE_OPEN_FAIL);
+        }
+
+        readSize = MIN(addFileStats.st_size, OTAR_MAX_MEMBER_FILE_SIZE);
+        Allocate_t_bytes_buffer(&fileContents, readSize);
+        actualRead = ReadInBytesTo_t_bytes_buffer(&fileContents, addFd, readSize);
+        if (readSize ==  actualRead)
+        {
+            // Build header
+            t_int_otar_header newHeader;
+            Construct_t_int_otar_header(&newHeader);
+            newHeader.size = addFileStats.st_size;
+            newHeader.fname_len = MIN(OTAR_FNAME_LEN_SIZE, strlen(fname)-1);
+            newHeader.fname = strndup(fname, newHeader.fname_len + 1);
+            newHeader.adate = addFileStats.st_atime;
+            newHeader.mdate = addFileStats.st_mtime;
+            newHeader.uid = addFileStats.st_uid;
+            newHeader.gid = addFileStats.st_gid;
+            newHeader.mode = addFileStats.st_mode;
+            
+            // Convert to file format
+            fileHeader = Copy_t_int_otar_header_To_otar_hdr_t(&newHeader);
+            
+            // Write to file
+            write(fd, fileHeader, sizeof(otar_hdr_t));
+            
+            // Write (header listed) number of bytes to the file
+            write(fd, fileContents.bytes, fileContents.size);
+            
+            free(fileHeader);
+            fileHeader = NULL;
+            close(addFd);
+        }
+        else
+        {
+            DebugOutput(1, "Read %s bytes when trying to add file %s instead of %s bytes.\n", actualRead, fname, readSize);
+            fprintf(stderr, "Failed to read %s to add it to the archive.\n", fname);
+            exit(OTAR_FILE_MEM_FILE_READ_FAIL);
+        }
+        
+    }
+    
+    close(fd);
 }
 
 int main(int argc, char ** argv)
@@ -619,10 +716,12 @@ int main(int argc, char ** argv)
                 if (options.extractFiles)
                 {
                     
+                    umask(0);
                 }
             }
             else if (options.addFiles)
             {
+                umask(0);
                 fd = open(options.archiveFile, O_RDWR | O_CREAT, S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
                 CheckOpen(fd);
                 
