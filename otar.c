@@ -496,12 +496,24 @@ t_int_otar_header * Copy_otar_hdr_t_To_t_int_otar_header(otar_hdr_t * in)
     return out;
 }
 
+void CharFieldFromInt(const char * format, const long value, char * destFileField, const int fileFieldSize);
+void CharFieldFromInt(const char * format, const long value, char * destFileField, const int fileFieldSize)
+{
+    // Size of working buffer
+    const int workingBufferSize = fileFieldSize + 1; // +1 is room for null snprintf adds
+    // Working buffer that is one byte longer than the file's field so it can hold the snprintf null
+    char * workingBuffer = (char *)malloc(workingBufferSize);
+    // Unfortunately, adds a null at the end, so we have to use a buffer and then drop the null
+    snprintf(workingBuffer, workingBufferSize, format, fileFieldSize, value);
+    // Copy without the null to field that will go in file
+    memcpy(destFileField, workingBuffer, fileFieldSize);
+    free(workingBuffer);
+}
+
 otar_hdr_t * Copy_t_int_otar_header_To_otar_hdr_t(t_int_otar_header * in);
 otar_hdr_t * Copy_t_int_otar_header_To_otar_hdr_t(t_int_otar_header * in)
 {
     otar_hdr_t * out = (otar_hdr_t *)malloc(sizeof(otar_hdr_t));
-    char * fieldData = NULL;
-    int fieldSize = -1;
     
     int nameLen = MIN(in->fname_len, OTAR_MAX_FILE_NAME_LEN);
     // Pad with spaces
@@ -509,13 +521,16 @@ otar_hdr_t * Copy_t_int_otar_header_To_otar_hdr_t(t_int_otar_header * in)
     // Set the string without a null getting added
     memcpy(out->otar_fname, in->fname, nameLen);
     
-    /*fieldSize = OTAR_FNAME_LEN_SIZE + 1;
-    fieldData = (char *)malloc(fieldSize);
-    snprintf(fieldData, "%d", fieldSize);
-    free(fieldData);
-    fieldData = NULL;
-    fieldSize = -1;*/
+    CharFieldFromInt("%*ld", in->fname_len, out->otar_fname_len, OTAR_FNAME_LEN_SIZE);
     
+    CharFieldFromInt("%*ld", in->adate, out->otar_adate, OTAR_DATE_SIZE);
+    CharFieldFromInt("%*ld", in->mdate, out->otar_mdate, OTAR_DATE_SIZE);
+    
+    CharFieldFromInt("%*ld", in->uid, out->otar_uid, OTAR_GUID_SIZE);
+    CharFieldFromInt("%*ld", in->gid, out->otar_gid, OTAR_GUID_SIZE);
+    
+    CharFieldFromInt("%*o", in->mode, out->otar_mode, OTAR_MODE_SIZE);
+    CharFieldFromInt("%*ld", in->size, out->otar_size, OTAR_FILE_SIZE);
     
     return out;
 }
