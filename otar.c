@@ -551,6 +551,8 @@ otar_hdr_t * Copy_t_int_otar_header_To_otar_hdr_t(t_int_otar_header * in)
     CharFieldFromInt("%*o", in->mode, out->otar_mode, OTAR_MODE_SIZE);
     CharFieldFromInt("%*ld", in->size, out->otar_size, OTAR_FILE_SIZE);
     
+    strncpy(out->otar_hdr_end, OTAR_HDR_END, OTAR_HDR_END_LEN);
+    
     return out;
 }
 
@@ -631,6 +633,7 @@ void AddFile(int fd, t_program_opts * options)
             DebugOutput(1, "Couldn't open filename %s to add to archive.\n", fname);
             exit(OTAR_FILE_MEM_FILE_OPEN_FAIL);
         }
+        fstat(addFd, &addFileStats);
 
         readSize = MIN(addFileStats.st_size, OTAR_MAX_MEMBER_FILE_SIZE);
         Allocate_t_bytes_buffer(&fileContents, readSize);
@@ -641,7 +644,7 @@ void AddFile(int fd, t_program_opts * options)
             t_int_otar_header newHeader;
             Construct_t_int_otar_header(&newHeader);
             newHeader.size = addFileStats.st_size;
-            newHeader.fname_len = MIN(OTAR_FNAME_LEN_SIZE, strlen(fname)-1);
+            newHeader.fname_len = MIN(OTAR_MAX_FILE_NAME_LEN, strlen(fname));
             newHeader.fname = strndup(fname, newHeader.fname_len + 1);
             newHeader.adate = addFileStats.st_atime;
             newHeader.mdate = addFileStats.st_mtime;
