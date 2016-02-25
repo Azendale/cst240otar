@@ -7,7 +7,9 @@
 #include <unistd.h>
 #include <string.h>
 #include <sys/param.h>
-
+#include <ctype.h>
+#include <sys/stat.h>
+#include <fcntl.h>
 #include "otar.h"
 
 #define MEM_ALLOC_ERROR 127
@@ -15,8 +17,14 @@
 
 static int g_debugLevel = 0;
 
+void ShowHelp(void);
+
 // Unsigned, bounded atoi
 // Credit goes to http://stackoverflow.com/a/1086059/962918 for the start of this
+int nuatoi(char * string, int count);
+long nuatol(char * string, int count);
+int nuatoiOctal(char * string, int count);
+
 int nuatoi(char * string, int count)
 {
     int total = 0;
@@ -32,7 +40,7 @@ int nuatoi(char * string, int count)
 
 // Unsigned, bounded atol
 // Credit goes to http://stackoverflow.com/a/1086059/962918 for the start of this
-long nuatoi(char * string, int count)
+long nuatol(char * string, int count)
 {
     long total = 0;
     int charVal = 0;
@@ -45,6 +53,20 @@ long nuatoi(char * string, int count)
     return total;
 }
 
+// Unsigned, bounded atoi octal version
+// Credit goes to http://stackoverflow.com/a/1086059/962918 for the start of this
+int nuatoiOctal(char * string, int count)
+{
+    int total = 0;
+    int charVal = 0;
+    while(isdigit(string[0]) && count--)
+    {
+        charVal = string[0] - '0';
+        total = total * 8 + charVal;      
+        ++string;
+    }
+    return total;
+}
 void DebugOutput(int level, const char * message, ...);
 void DebugOutput(int level, const char * message, ...)
 {
@@ -129,6 +151,7 @@ typedef struct s_program_opts
     bool showContentsShort;
     bool extractFiles;
     bool deleteFiles;
+    bool overwriteFiles;
     char * archiveFile;
     t_string_list files;
 } t_program_opts;
@@ -174,6 +197,7 @@ const char * GetFileNameByIndex_t_program_opts(t_program_opts options, int index
     return GetStringByIndex_t_string_list(&(options.files), index);
 }
 
+void SetArchiveFile(t_program_opts * container, char * filename);
 void SetArchiveFile(t_program_opts * container, char * filename)
 {
     container->archiveFile = filename;
@@ -249,7 +273,7 @@ void Construct_t_bytes_buffer(t_bytes_buffer * newStruct);
 void Destruct_t_bytes_buffer(t_bytes_buffer * oldStruct);
 void Deallocate_t_bytes_buffer(t_bytes_buffer * container);
 void Allocate_t_bytes_buffer(t_bytes_buffer * container, int bytes);
-void ReadInBytesTo_t_bytes_buffer(t_bytes_buffer * container, int fdin, int bytes);
+ssize_t ReadInBytesTo_t_bytes_buffer(t_bytes_buffer * container, int fdin, int bytes);
 bool CompareBuffer_t_bytes_buffer(t_bytes_buffer * container, void * otherBuffer, int otherBufferBytes);
 
 
@@ -321,7 +345,7 @@ ssize_t ReadInBytesTo_t_bytes_buffer(t_bytes_buffer * container, int fdin, int b
             DebugOutput(2, "Read %d bytes from file into t_bytes_buffer instead of %d bytes requested.\n", readCount, bytes);
         }
     }
-    return ReadCount;
+    return readCount;
 }
 
 bool CompareBuffer_t_bytes_buffer(t_bytes_buffer * container, void * otherBuffer, int otherBufferBytes)
@@ -412,7 +436,7 @@ bool ValidateHeaderOtarFile(int fdin, bool thorough)
     return true;
 }*/
 
-void ShowHelp()
+void ShowHelp(void)
 {
     printf("Help text"); // TODO: write manual
 }
@@ -422,22 +446,31 @@ typedef struct s_int_otar_header
    int size; 
    int fname_len;
    char * fname;
+   long adate;
+   long mdate;
+   int uid;
+   int gid;
+   int mode;
 } t_int_otar_header;
 
 void Construct_t_int_otar_header(t_int_otar_header * container);
 void Construct_t_int_otar_header(t_int_otar_header * container)
 {
-    size = 0;
+    container->size = 0;
     // Size, not counting null terminating guard, -1 means no string/don't derefence fname
-    fname_len = -1;
-    fname = NULL;
+    container->fname_len = -1;
+    container->fname = NULL;
+    container->uid = 0;
+    container->gid = 0;
+    container->mode = 0;
 }
 
+void Cleanup_t_int_otar_header(t_int_otar_header * container);
 void Cleanup_t_int_otar_header(t_int_otar_header * container)
 {
-    free(fname);
+    free(container->fname);
     // -1 means no string, not even empty (so a check for -1 is to gaurd against segfaults)
-    fname_len = -1;
+    container->fname_len = -1;
 }
 
 t_int_otar_header * Copy_otar_hdr_t_To_t_int_otar_header(otar_hdr_t * in);
@@ -446,12 +479,19 @@ t_int_otar_header * Copy_otar_hdr_t_To_t_int_otar_header(otar_hdr_t * in)
     t_int_otar_header * out = malloc(sizeof(t_int_otar_header));
     Construct_t_int_otar_header(out);
     
-    out->size = nuatoi(header.otar_fname_len, OTAR_FILE_SIZE);
-    out->fname_len = nuatoi(header.otar_fname_len, OTAR_FNAME_LEN_SIZE);
-    out->fname = strndup(header.otar_fname, min(OTAR_MAX_FILE_NAME_LEN, out->fname_len));
+    out->fname_len = nuatoi(in->otar_fname_len, OTAR_FNAME_LEN_SIZE);
+    out->fname = strndup(in->otar_fname, MIN(OTAR_MAX_FILE_NAME_LEN, out->fname_len));
     // Length, as determined by null termination
-    out->fname_len = min(strlen(out->fname), out->fname_len);
+    out->fname_len = MIN(strlen(out->fname), out->fname_len);
+    
+    out->adate = nuatol(in->otar_adate, OTAR_DATE_SIZE);
+    out->mdate = nuatol(in->otar_mdate, OTAR_DATE_SIZE);
 
+    out->uid = nuatoi(in->otar_uid, OTAR_GUID_SIZE);
+    out->gid = nuatoi(in->otar_gid, OTAR_GUID_SIZE);
+    
+    out->mode = nuatoiOctal(in->otar_mode, OTAR_MODE_SIZE);
+    out->size = MIN(nuatoi(in->otar_size, OTAR_FILE_SIZE), OTAR_MAX_MEMBER_FILE_SIZE);
     
     return out;
 }
@@ -459,7 +499,25 @@ t_int_otar_header * Copy_otar_hdr_t_To_t_int_otar_header(otar_hdr_t * in)
 otar_hdr_t * Copy_t_int_otar_header_To_otar_hdr_t(t_int_otar_header * in);
 otar_hdr_t * Copy_t_int_otar_header_To_otar_hdr_t(t_int_otar_header * in)
 {
+    otar_hdr_t * out = (otar_hdr_t *)malloc(sizeof(otar_hdr_t));
+    char * fieldData = NULL;
+    int fieldSize = -1;
     
+    int nameLen = MIN(in->fname_len, OTAR_MAX_FILE_NAME_LEN);
+    // Pad with spaces
+    memset(out->otar_fname, ' ', OTAR_MAX_FILE_NAME_LEN);
+    // Set the string without a null getting added
+    memcpy(out->otar_fname, in->fname, nameLen);
+    
+    /*fieldSize = OTAR_FNAME_LEN_SIZE + 1;
+    fieldData = (char *)malloc(fieldSize);
+    snprintf(fieldData, "%d", fieldSize);
+    free(fieldData);
+    fieldData = NULL;
+    fieldSize = -1;*/
+    
+    
+    return out;
 }
 
 int main(int argc, char ** argv)
@@ -482,6 +540,12 @@ int main(int argc, char ** argv)
     if (options.archiveFile)
     {
         otar_hdr_t * header = (otar_hdr_t *)malloc(sizeof(otar_hdr_t));
+        int fdin = open(options.archiveFile, O_RDONLY);
+        
+        if (-1 == fdin)
+        {
+            exit(OTAR_FILE_COULD_NOT_OPEN);
+        }
         
         if (options.showContentsLong)
         {
@@ -492,21 +556,21 @@ int main(int argc, char ** argv)
             }
             while (sizeof(otar_hdr_t) == read(fdin, header, sizeof(otar_hdr_t)))
             {
-                // Convert size from lengthstring to int
+                /*// Convert size from lengthstring to int
                 int fileSize = nuatoi(header.otar_fname_len, OTAR_FILE_SIZE);
                 
                 // Convert name size from lengthstring to int
                 // Does not count null term
                 int fileNameSize = nuatoi(header.otar_fname_len, OTAR_FNAME_LEN_SIZE);
                 
-                /*int nullTFnameLen = min(OTAR_MAX_FILE_NAME_LEN, fileNameSize)+1;
+                *//*int nullTFnameLen = min(OTAR_MAX_FILE_NAME_LEN, fileNameSize)+1;
                 char * nullTFname = (char *)(malloc(nullTFnameLen));
-                nullTFname[nullTFnameLen-1] = 0;*/
+                nullTFname[nullTFnameLen-1] = 0;*//*
                 char * nullTFname = strndup(header.otar_fname, min(OTAR_MAX_FILE_NAME_LEN, fileNameSize));
                 
                 printf("%s\n", nullTFname);
                 free(nullTFname);
-                lseek(header->ator_size)
+                lseek(header->ator_size)*/
             }
         }
         else if (options.showContentsShort)

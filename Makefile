@@ -1,5 +1,5 @@
 GIT_VERSION := $(shell git describe --abbrev=16 --dirty="-uncommitted" --always --tags)
-CFLAGS=-Wall -Wshadow -Wunreachable-code -Wredundant-decls -Wmissing-declarations -Wold-style-definition -Wmissing-prototypes -Wdeclaration-after-statement -DGIT_VERSION=\"$(GIT_VERSION)\" -std=c99
+CFLAGS=-Wall -Wshadow -Wunreachable-code -Wredundant-decls -Wmissing-declarations -Wold-style-definition -Wmissing-prototypes -Wdeclaration-after-statement -DGIT_VERSION=\"$(GIT_VERSION)\" -std=gnu99
 CC = gcc
 
 OBJS = otar \
