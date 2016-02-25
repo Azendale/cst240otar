@@ -544,7 +544,7 @@ otar_hdr_t * Copy_t_int_otar_header_To_otar_hdr_t(t_int_otar_header * in)
     // Set the string without a null getting added
     memcpy(out->otar_fname, in->fname, nameLen);
     
-    CharFieldFromInt("%-*ld", in->fname_len, out->otar_fname_len, OTAR_FNAME_LEN_SIZE);
+    CharFieldFromInt("%*ld", in->fname_len, out->otar_fname_len, OTAR_FNAME_LEN_SIZE);
     
     CharFieldFromInt("%-*ld", in->adate, out->otar_adate, OTAR_DATE_SIZE);
     CharFieldFromInt("%-*ld", in->mdate, out->otar_mdate, OTAR_DATE_SIZE);
