@@ -406,7 +406,23 @@ bool readOtarMainHeader(int fdin)
 
 void ShowHelp(void)
 {
-    printf("Help text"); // TODO: write manual
+    printf("otar <options> [archive-file] [member [...]]\n\
+    \n\
+    Options:\n\
+    -a\n\
+    Add member(s) from the command line to the archive file. You must specify an archive file name and there must be at least one file name to add to the archive.\n\
+    -d\n\
+    Delete member(s) from an archive file. You must specify an archive file name. You must identify at least one file member on the command line.\n\
+    -e\n\
+    Extract member(s) from archive to file, from command line. If no file members are identified on the command line, extract all files from the archive. Do not overwrite a file that already exists (unless the –o option is also used). Restore file modified and access times and permissions based on the content of the archive file.\n\
+    -h\n\
+    Show the help text and exit. (If you are reading this message, you have discovered this option!)\n\
+    -t\n\
+    Short table of contents.\n\
+    -v\n\
+    Verbose processing. Repeating it increases verbosity.\n\
+    -V\n\
+    Print the version information and exit. Versions are based off git commit numbers.\n");
 }
 
 typedef struct s_int_otar_header
