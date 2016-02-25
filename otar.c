@@ -663,6 +663,7 @@ void AddFile(int fd, t_program_opts * options)
             
             free(fileHeader);
             fileHeader = NULL;
+            Cleanup_t_int_otar_header(&newHeader);
             close(addFd);
         }
         else
@@ -675,6 +676,129 @@ void AddFile(int fd, t_program_opts * options)
     }
     
     close(fd);
+}
+
+bool fnameInOptionsFileList(t_program_opts * options, const char * fname, int fname_len);
+bool fnameInOptionsFileList(t_program_opts * options, const char * fname, int fname_len)
+{
+    int fileCount;
+    
+    fileCount = GetFileCount_t_program_opts(options);
+    for (int i = 0; i < fileCount; ++i)
+    {
+        const char * listFname = GetFileNameByIndex_t_program_opts(options, i);
+        if (0 == strncmp(fname, listFname, fname_len))
+        {
+            return true;
+        }
+    }
+    return false;
+}
+
+void RemoveFile(int fd, t_program_opts * options);
+void RemoveFile(int fd, t_program_opts * options)
+{
+    // Declare vars
+    // Size of stuff deleted so far from the archive. If 0, no rewriting needs to happen
+    int holesize = 0;
+    // Size of last read
+    int readSize = 0;
+    // buffer for moving file bodies
+    t_bytes_buffer fileBuffer;
+    // parsed header (ints for numbers instead of strings)
+    t_int_otar_header * header2;
+    // unparsed header (in file/string format)
+    otar_hdr_t * header;
+    // Area for fstat to write info about the archive file so we can know length
+    struct stat fstatStruct;
+    
+    
+    // Initialize vars
+    header2 = NULL;
+    header = (otar_hdr_t *)malloc(sizeof(otar_hdr_t));
+    Construct_t_bytes_buffer(&fileBuffer);
+    
+    // For each file in archive
+    while (0 == holesize && sizeof(otar_hdr_t) == (readSize = read(fd, header, sizeof(otar_hdr_t))))
+    {
+        header2 = Copy_otar_hdr_t_To_t_int_otar_header(header);
+        // see if the archive file is on the delete list
+        if (fnameInOptionsFileList(options, header2->fname, header2->fname_len))
+        {
+            // File needs to be deleted, switch to write mode, and start writing what is holesize ahead
+            holesize = sizeof(otar_hdr_t) + header2->size;
+            // Rewind over the header so it gets overwritten
+            lseek(fd, -(sizeof(otar_hdr_t)), SEEK_CUR);
+        }
+        
+        if (0 == holesize)
+        {
+            // Not in delete mode yet, continue skipping forward
+            lseek(fd, header2->size, SEEK_CUR);
+        }
+        free(header2);
+        header2 = NULL;
+    }
+    // move past deleted file
+    lseek(fd, holesize, SEEK_CUR);
+    
+    // if we are not at the end, then we are in shuffle/delete mode
+    while ( sizeof(otar_hdr_t) == (readSize = read(fd, header, sizeof(otar_hdr_t)) ) )
+    {
+        // Get parsed version of the header we just read
+        header2 = Copy_otar_hdr_t_To_t_int_otar_header(header);
+        
+        if (fnameInOptionsFileList(options, header2->fname, header2->fname_len))
+        {
+            // File needs to be deleted, add it (body & header) to the hole
+            holesize = holesize + sizeof(otar_hdr_t) + header2->size;
+            // Skip over/past file body
+            lseek(fd, header2->size, SEEK_CUR);
+        }
+        else
+        {
+            // We want to keep this file, so shuffle it
+            // Go to the start of the hole (we are otar_hdr_t size past the end of the hole from reading this header)
+            lseek(fd, -(holesize+sizeof(otar_hdr_t)), SEEK_CUR);
+            // Write the header
+            write(fd, header, sizeof(otar_hdr_t));
+            // skip forward the size of the hole (which puts us in position to read the file body for the header we just moved)
+            lseek(fd, holesize, SEEK_CUR);
+            // Make memory room, and then read the body of the file
+            Allocate_t_bytes_buffer(&fileBuffer, header2->size);
+            if (header2->size != ReadInBytesTo_t_bytes_buffer(&fileBuffer, fd, header2->size))
+            {
+                fprintf(stderr, "Failed to read file body while reshuffling file.\n");
+                exit(OTAR_FILE_MEM_FILE_READ_FAIL);
+            }
+            // rewind back to the start of the file block that was just read, and then back across the hole
+            lseek(fd, -(header2->size + holesize), SEEK_CUR);
+            // Now we should be after the file header that was just written -- right in position to write file body
+            if (fileBuffer.size != write(fd, fileBuffer.bytes, fileBuffer.size))
+            {
+                fprintf(stderr, "Failed to write file body while reshuffing file.\n");
+                exit(OTAR_FILE_AR_FILE_WRITE_FAIL);
+            }
+            // Cleanup memory we used to move the file
+            Deallocate_t_bytes_buffer(&fileBuffer);
+            // Ok, jump over the new hole and do it all again for the next file
+            lseek(fd, holesize, SEEK_CUR);
+        }
+        
+        Cleanup_t_int_otar_header(header2);
+        free(header2);
+        header2 = NULL;
+    }
+    // truncate file at oldsize-holesize
+    // ftruncate at fstatStruct.st_size - holesize
+    fstat(fd, &fstatStruct);
+    ftruncate(fd, fstatStruct.st_size - holesize);
+    close(fd);
+    
+    // Clean up working space
+    free(header);
+    header = NULL;
+    Destruct_t_bytes_buffer(&fileBuffer);
 }
 
 int main(int argc, char ** argv)
@@ -734,6 +858,7 @@ int main(int argc, char ** argv)
                 fd = open(options.archiveFile, O_RDWR);
                 CheckOpen(fd);
                 CheckHeader(fd);
+                RemoveFile(fd, &options);
             }
         }
         else
