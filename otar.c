@@ -493,6 +493,12 @@ t_int_otar_header * Copy_otar_hdr_t_To_t_int_otar_header(otar_hdr_t * in)
     out->mode = nuatoiOctal(in->otar_mode, OTAR_MODE_SIZE);
     out->size = MIN(nuatoi(in->otar_size, OTAR_FILE_SIZE), OTAR_MAX_MEMBER_FILE_SIZE);
     
+    if (0 != memcmp(OTAR_HDR_END, in->otar_hdr_end, OTAR_HDR_END_LEN))
+    {
+        DebugOutput(1, "Not a valid otar file.\n");
+        exit(OTAR_FILE_CORRUPT);
+    }
+    
     return out;
 }
 
@@ -552,57 +558,58 @@ int main(int argc, char ** argv)
     {
         printf("Version: %s\n", GIT_VERSION);
     }
-    if (options.archiveFile)
+    // Things we need a file for
+    if ( (options.extractFiles || options.showContentsLong || options.showContentsShort || options.addFiles || options.deleteFiles) && options.archiveFile)
     {
+        int fd;
         otar_hdr_t * header = (otar_hdr_t *)malloc(sizeof(otar_hdr_t));
-        int fdin = open(options.archiveFile, O_RDONLY);
-        
-        if (-1 == fdin)
+        // Readonly operations
+        if (options.extractFiles || options.showContentsLong || options.showContentsShort)
         {
-            exit(OTAR_FILE_COULD_NOT_OPEN);
-        }
-        
-        if (options.showContentsLong)
-        {
-            if (!readOtarMainHeader(fdin))
+            fd = open(options.archiveFile, O_RDONLY);
+            if (-1 == fd)
+            {
+                exit(OTAR_FILE_COULD_NOT_OPEN);
+            }
+            
+            if (!readOtarMainHeader(fd))
             {
                 DebugOutput(1, "Not a valid otar file.\n");
                 exit(OTAR_FILE_CORRUPT);
             }
-            while (sizeof(otar_hdr_t) == read(fdin, header, sizeof(otar_hdr_t)))
-            {
-                /*// Convert size from lengthstring to int
-                int fileSize = nuatoi(header.otar_fname_len, OTAR_FILE_SIZE);
-                
-                // Convert name size from lengthstring to int
-                // Does not count null term
-                int fileNameSize = nuatoi(header.otar_fname_len, OTAR_FNAME_LEN_SIZE);
-                
-                *//*int nullTFnameLen = min(OTAR_MAX_FILE_NAME_LEN, fileNameSize)+1;
-                char * nullTFname = (char *)(malloc(nullTFnameLen));
-                nullTFname[nullTFnameLen-1] = 0;*//*
-                char * nullTFname = strndup(header.otar_fname, min(OTAR_MAX_FILE_NAME_LEN, fileNameSize));
-                
-                printf("%s\n", nullTFname);
-                free(nullTFname);
-                lseek(header->ator_size)*/
-            }
-        }
-        else if (options.showContentsShort)
-        {
             
+            if (options.showContentsShort)
+            {
+                while (sizeof(otar_hdr_t) == read(fd, header, sizeof(otar_hdr_t)))
+                {
+
+                }
+            }
+            if (options.showContentsLong)
+            {
+                
+            }
+            if (options.extractFiles)
+            {
+                
+            }
         }
         else if (options.addFiles)
         {
-            
-        }
-        else if (options.extractFiles)
-        {
-            
+            fd = open(options.archiveFile, O_RDWR | O_CREAT, S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
+            if (-1 == fd)
+            {
+                exit(OTAR_FILE_COULD_NOT_OPEN);
+            }
+             
         }
         else if (options.deleteFiles)
         {
-            
+           fd = open(options.archiveFile, O_RDWR);
+            if (-1 == fd)
+            {
+                exit(OTAR_FILE_COULD_NOT_OPEN);
+            }
         }
         
         free(header);
@@ -610,7 +617,7 @@ int main(int argc, char ** argv)
     }
     else
     {
-        fprintf(stderr, "No archive file specified.\n");
+        fprintf(stderr, "No archive file specified, but you requested an operation that requires one.\n");
         ShowHelp();
     }
     Cleanup_t_program_opts(&options);
