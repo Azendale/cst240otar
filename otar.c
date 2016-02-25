@@ -13,6 +13,7 @@
 #include <sys/time.h>
 #include <errno.h>
 #include <utime.h>
+#include <libgen.h>
 
 #include "otar.h"
 
@@ -578,10 +579,12 @@ void AddFile(int fd, t_program_opts * options)
         int actualRead;
         t_bytes_buffer fileContents;
         otar_hdr_t * fileHeader = NULL;
-        const char * fname = NULL;
+        char * fname = NULL;
+        char * baseFname = NULL;
         int addFd = -1;
         Construct_t_bytes_buffer(&fileContents);
-        fname = GetFileNameByIndex_t_program_opts(options, i);
+        fname = strdup(GetFileNameByIndex_t_program_opts(options, i));
+        baseFname = basename(fname);
         addFd = open(fname, O_RDONLY);
         if (-1 == addFd)
         {
@@ -599,8 +602,8 @@ void AddFile(int fd, t_program_opts * options)
             t_int_otar_header newHeader;
             Construct_t_int_otar_header(&newHeader);
             newHeader.size = addFileStats.st_size;
-            newHeader.fname_len = MIN(OTAR_MAX_FILE_NAME_LEN, strlen(fname));
-            newHeader.fname = strndup(fname, newHeader.fname_len + 1);
+            newHeader.fname_len = MIN(OTAR_MAX_FILE_NAME_LEN, strlen(baseFname));
+            newHeader.fname = strndup(baseFname, newHeader.fname_len + 1);
             newHeader.adate = addFileStats.st_atime;
             newHeader.mdate = addFileStats.st_mtime;
             newHeader.uid = addFileStats.st_uid;
@@ -627,7 +630,8 @@ void AddFile(int fd, t_program_opts * options)
             fprintf(stderr, "Failed to read %s to add it to the archive.\n", fname);
             exit(OTAR_FILE_MEM_FILE_READ_FAIL);
         }
-        
+        free(fname);
+        fname = NULL;
     }
     
     close(fd);
