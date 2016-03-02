@@ -1,3 +1,4 @@
+// Written by Erik Andersen, last modified 2016-03-02
 #include <stdio.h>
 #include <getopt.h>
 #include <stdbool.h>
@@ -20,8 +21,10 @@
 #define MEM_ALLOC_ERROR 127
 #define FILE_READ_ERROR 126
 
+// Debug level of the program
 static int g_debugLevel = 0;
 
+// Print help messages for otar
 void ShowHelp(void);
 
 // Unsigned, bounded atoi
@@ -30,6 +33,7 @@ int nuatoi(char * string, int count);
 long nuatol(char * string, int count);
 int nuatoiOctal(char * string, int count);
 
+// Convert a length specified char array to an int (return 0 if there is an error)
 int nuatoi(char * string, int count)
 {
     int total = 0;
@@ -49,6 +53,7 @@ int nuatoi(char * string, int count)
 
 // Unsigned, bounded atol
 // Credit goes to http://stackoverflow.com/a/1086059/962918 for the start of this
+// Convert a length specified char array to an long (return 0 if there is an error)
 long nuatol(char * string, int count)
 {
     long total = 0;
@@ -68,6 +73,7 @@ long nuatol(char * string, int count)
 
 // Unsigned, bounded atoi octal version
 // Credit goes to http://stackoverflow.com/a/1086059/962918 for the start of this
+// Convert a length specified char array to an int from octal (return 0 if there is an error)
 int nuatoiOctal(char * string, int count)
 {
     int total = 0;
@@ -84,6 +90,8 @@ int nuatoiOctal(char * string, int count)
     }
     return total;
 }
+
+//Print a message, if it is in the current verbosity range
 void DebugOutput(int level, const char * message, ...);
 void DebugOutput(int level, const char * message, ...)
 {
@@ -96,12 +104,16 @@ void DebugOutput(int level, const char * message, ...)
     va_end(args);
 }
 
+// List of strings (null terminated strungs)
 typedef struct s_string_list
 {
+    // Our list
     const char ** list;
+    // Length of our list
     int size;
 } t_string_list;
 
+// Initialize the list to default/empty state
 void Construct_t_string_list(t_string_list * newStruct);
 void Construct_t_string_list(t_string_list * newStruct)
 {
@@ -109,6 +121,8 @@ void Construct_t_string_list(t_string_list * newStruct)
    newStruct->list = NULL; 
 }
 
+// Clean up any memory used be the list object itself (strings pointed to not
+// included, so we can use this for things in argv)
 void Destruct_t_string_list(t_string_list * oldStruct);
 void Destruct_t_string_list(t_string_list * oldStruct)
 {
@@ -118,6 +132,7 @@ void Destruct_t_string_list(t_string_list * oldStruct)
     oldStruct->list = NULL;
 }
 
+// Clean up the strings pointed to by this list
 void FreeStrings_t_string_list(t_string_list * oldStruct);
 void FreeStrings_t_string_list(t_string_list * oldStruct)
 {
@@ -128,6 +143,7 @@ void FreeStrings_t_string_list(t_string_list * oldStruct)
     }
 }
 
+// Add a string to the list
 void AddString_t_string_list(t_string_list * container, const char * string);
 void AddString_t_string_list(t_string_list * container, const char * string)
 {
@@ -146,18 +162,21 @@ void AddString_t_string_list(t_string_list * container, const char * string)
     }
 }
 
+// Count how many string are in the list
 int GetStringCount_t_string_list(t_string_list * container);
 int GetStringCount_t_string_list(t_string_list * container)
 {
     return container->size;
 }
 
+// Get a string in a certian position
 const char * GetStringByIndex_t_string_list(t_string_list * container, int index);
 const char * GetStringByIndex_t_string_list(t_string_list * container, int index)
 {
     return container->list[index];
 }
 
+// Hold the options the user ran the program with
 typedef struct s_program_opts
 {
     int debugLevel;
@@ -173,6 +192,7 @@ typedef struct s_program_opts
     t_string_list files;
 } t_program_opts;
 
+// Initialize the program options struct
 void Construct_t_program_opts(t_program_opts *newStruct);
 void Construct_t_program_opts(t_program_opts *newStruct)
 {
@@ -189,6 +209,7 @@ void Construct_t_program_opts(t_program_opts *newStruct)
     Construct_t_string_list(&(newStruct->files));
 }
 
+// Remove dynamic memory pointed to by our options struct
 void Cleanup_t_program_opts(t_program_opts * oldStruct);
 void Cleanup_t_program_opts(t_program_opts * oldStruct)
 {
@@ -196,30 +217,35 @@ void Cleanup_t_program_opts(t_program_opts * oldStruct)
     Destruct_t_string_list(&(oldStruct->files));
 }
 
+// Add a member file to the list of files to extract/add/remove
 void AddFile_t_program_opts(t_program_opts * options, const char * string);
 void AddFile_t_program_opts(t_program_opts * options, const char * string)
 {
     AddString_t_string_list(&(options->files), string);
 }
 
+// Count the number of files we were given to operate with
 int GetFileCount_t_program_opts(t_program_opts * options);
 int GetFileCount_t_program_opts(t_program_opts * options)
 {
     return GetStringCount_t_string_list(&(options->files));
 }
 
+// Get a filename by index from the list of files to add/extract/remove
 const char * GetFileNameByIndex_t_program_opts(t_program_opts * options, int index);
 const char * GetFileNameByIndex_t_program_opts(t_program_opts * options, int index)
 {
     return GetStringByIndex_t_string_list(&(options->files), index);
 }
 
+// Set the archive file to operate on
 void SetArchiveFile(t_program_opts * container, char * filename);
 void SetArchiveFile(t_program_opts * container, char * filename)
 {
     container->archiveFile = filename;
 }
 
+// Convert the command line arguments to our struct format
 void parseopt(int argc, char ** argv, t_program_opts *options);
 void parseopt(int argc, char ** argv, t_program_opts *options)
 {
@@ -286,11 +312,19 @@ typedef struct s_bytes_buffer
     void * bytes;
 } t_bytes_buffer;
 
+// Initialize the bytes buffer structure
 void Construct_t_bytes_buffer(t_bytes_buffer * newStruct);
+// Clean up the bytes buffer structure
 void Destruct_t_bytes_buffer(t_bytes_buffer * oldStruct);
+// Free any memory currently used by the bytes buffer structure. It is still
+// valid to allocate the buffer after this and re-use it
 void Deallocate_t_bytes_buffer(t_bytes_buffer * container);
+// Resize the buffer to a specific size
 void Allocate_t_bytes_buffer(t_bytes_buffer * container, int bytes);
+// Read in 'bytes' count of bytes from the fdin file descriptor to the buffer.
+// Returns the number of bytes read.
 ssize_t ReadInBytesTo_t_bytes_buffer(t_bytes_buffer * container, int fdin, int bytes);
+// Compare a bytes buffer to a block of memory that is otherBufferBytes long
 bool CompareBuffer_t_bytes_buffer(t_bytes_buffer * container, void * otherBuffer, int otherBufferBytes);
 
 
@@ -378,6 +412,7 @@ bool CompareBuffer_t_bytes_buffer(t_bytes_buffer * container, void * otherBuffer
     }
 }
 
+// Read the "<otar>\n" header
 bool readOtarMainHeader(int fdin);
 bool readOtarMainHeader(int fdin)
 {
@@ -425,6 +460,8 @@ void ShowHelp(void)
     Print the version information and exit. Versions are based off git commit numbers.\n");
 }
 
+// Parsed otar member file header
+// Among other things, has numbers as real numbers and not strings
 typedef struct s_int_otar_header
 {
    int size; 
@@ -437,6 +474,7 @@ typedef struct s_int_otar_header
    int mode;
 } t_int_otar_header;
 
+// Initialize the struct
 void Construct_t_int_otar_header(t_int_otar_header * container);
 void Construct_t_int_otar_header(t_int_otar_header * container)
 {
@@ -449,6 +487,7 @@ void Construct_t_int_otar_header(t_int_otar_header * container)
     container->mode = 0;
 }
 
+// Free any allocated memory
 void Cleanup_t_int_otar_header(t_int_otar_header * container);
 void Cleanup_t_int_otar_header(t_int_otar_header * container)
 {
@@ -457,6 +496,8 @@ void Cleanup_t_int_otar_header(t_int_otar_header * container)
     container->fname_len = -1;
 }
 
+// Convert otar file format to in-memory struct
+// Returned pointer is malloc'd memory, free it
 t_int_otar_header * Copy_otar_hdr_t_To_t_int_otar_header(otar_hdr_t * in);
 t_int_otar_header * Copy_otar_hdr_t_To_t_int_otar_header(otar_hdr_t * in)
 {
@@ -487,6 +528,10 @@ t_int_otar_header * Copy_otar_hdr_t_To_t_int_otar_header(otar_hdr_t * in)
     return out;
 }
 
+// Convert a int to a character field, without the null terminating character.
+// format is a printf format specifier with %*ld type format strings (which
+// allow us to set field width). destFileField is a buffer that is
+// fileFieldSize long (at least)
 void CharFieldFromInt(const char * format, const long value, char * destFileField, const int fileFieldSize);
 void CharFieldFromInt(const char * format, const long value, char * destFileField, const int fileFieldSize)
 {
@@ -501,6 +546,8 @@ void CharFieldFromInt(const char * format, const long value, char * destFileFiel
     free(workingBuffer);
 }
 
+// Convert parsed header to a otar file format header
+// Returned pointer is malloc'd memory, free it!
 otar_hdr_t * Copy_t_int_otar_header_To_otar_hdr_t(t_int_otar_header * in);
 otar_hdr_t * Copy_t_int_otar_header_To_otar_hdr_t(t_int_otar_header * in)
 {
@@ -528,6 +575,7 @@ otar_hdr_t * Copy_t_int_otar_header_To_otar_hdr_t(t_int_otar_header * in)
     return out;
 }
 
+// Check if a FD is open
 void CheckOpen(int fd);
 void CheckOpen(int fd)
 {
@@ -538,6 +586,7 @@ void CheckOpen(int fd)
     }    
 }
 
+// Check if a file has the otar header
 void CheckHeader(int fd);
 void CheckHeader(int fd)
 {
@@ -548,6 +597,7 @@ void CheckHeader(int fd)
     }
 }
 
+// Short listing of otar file
 void ListOtarShort(int fd, t_program_opts const * options);
 void ListOtarShort(int fd, t_program_opts const * options)
 {
@@ -564,6 +614,7 @@ void ListOtarShort(int fd, t_program_opts const * options)
     free(header);
 }
 
+// Add file(s) to an otar file
 void AddFile(int fd, t_program_opts * options);
 void AddFile(int fd, t_program_opts * options)
 {
@@ -653,6 +704,7 @@ void AddFile(int fd, t_program_opts * options)
     close(fd);
 }
 
+//Check if a filename character array is in the list of add/delete/extract files
 bool fnameInOptionsFileList(t_program_opts * options, const char * fname, int fname_len);
 bool fnameInOptionsFileList(t_program_opts * options, const char * fname, int fname_len)
 {
@@ -670,6 +722,7 @@ bool fnameInOptionsFileList(t_program_opts * options, const char * fname, int fn
     return false;
 }
 
+// Remove file(s) from an otar file
 void RemoveFile(int fd, t_program_opts * options);
 void RemoveFile(int fd, t_program_opts * options)
 {
@@ -776,6 +829,7 @@ void RemoveFile(int fd, t_program_opts * options)
     Destruct_t_bytes_buffer(&fileBuffer);
 }
 
+// Extract files from an otar file
 void ExtractFile(int fd, t_program_opts * options);
 void ExtractFile(int fd, t_program_opts * options)
 {
