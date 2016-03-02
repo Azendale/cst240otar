@@ -1,4 +1,5 @@
 // Written by Erik Andersen, last modified 2016-03-02
+
 #include <stdio.h>
 #include <getopt.h>
 #include <stdbool.h>
